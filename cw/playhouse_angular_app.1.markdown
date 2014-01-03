@@ -219,6 +219,11 @@ localhost:9292
 
 If we visit http://localhost:9292/wpww/test in our browser then we should see Hurray!.  Hurray! we have a functioning playhouse sinatra api.
 
-Sidenote: Note that if you try changing the Hurrah! text in test.rb and refresh the page, it will still say hurrah. rackup doesn't automatically reload files when they change, to remedy with this add ```gem shotgun``` to the Gemfile, and use ```shotgun``` instead of ```rackup```
+Sidenote: Note that if you try changing the Hurrah! text in test.rb and refresh
+the page, it will still say hurrah. rackup doesn't automatically reload files
+when they change, to remedy with this add ```gem shotgun``` to the Gemfile, and
+use ```shotgun``` instead of ```rackup``` shotgun uses localhost:9393 by
+default so visit localhost:9393/wpww/test, then try changing the text in
+test.rb and refreshing the page.
 
 
