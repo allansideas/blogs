@@ -45,7 +45,7 @@ We can now run bundle install.
 Next we need to create the basic directory structure and config files for our app.
 
 The basic directory structure looks like this:
-
+```
 -config
 --database.yml
 -db
@@ -66,6 +66,7 @@ The basic directory structure looks like this:
 Gemfile
 config.ru
 wpww_sinatra.rb
+```
 
 ```
 touch wpww_sinatra.rb config.ru && mkdir config db lib && cd db && mkdir migrate && cd ../lib && touch wpww_core.rb && mkdir wpww support tasks && cd wpww && touch wpww_play.rb && mkdir composers contexts entities roles && cd .. && cd ..
