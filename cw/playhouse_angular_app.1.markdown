@@ -186,6 +186,39 @@ end
 load 'active_record/railties/databases.rake'
 ```
 
+*database.yml*
+```
+development:
+  database: db/development.sqlite
+  adapter: sqlite3
+
+test:
+  database: db/test.sqlite
+  adapter: sqlite3
+```
+
 Now if we run rackup from our root dir, we will see that the app can't
 load the context TODO.  Lets create a test context to have a hurray
 moment after all our hard work setting up.
+
+*lib/wpww/contexts/test.rb*
+```
+require 'playhouse/context'
+
+module Wpww
+  class Test < Playhouse::Context
+    def perform
+      "Hurray!"
+    end
+  end
+end
+```
+
+Now when we run rackup we should see that the server is listening on
+localhost:9292
+
+If we visit http://localhost:9292/wpww/test in our browser then we should see Hurray!.  Hurray! we have a functioning playhouse sinatra api.
+
+Sidenote: Note that if you try changing the Hurrah! text in test.rb and refresh the page, it will still say hurrah. rackup doesn't automatically reload files when they change, to remedy with this add ```gem shotgun``` to the Gemfile, and use ```shotgun``` instead of ```rackup```
+
+
