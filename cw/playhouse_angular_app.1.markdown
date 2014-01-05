@@ -226,4 +226,103 @@ use ```shotgun``` instead of ```rackup``` shotgun uses localhost:9393 by
 default so visit localhost:9393/wpww/test, then try changing the text in
 test.rb and refreshing the page.
 
+##Setting up the yeoman angular app.
 
+Requirements:
+
+1. node
+2. yeoman (yo)
+3. generator-angular
+4. Ruby
+4. Compass
+
+I like to use a different rbenv/gemset because deployment will differ
+from the api.
+
+After you have installed the above run ```yo angular --minsafe
+--coffee```.  When asked include twitter bootstrap, and then select yes
+for scss version.  I chose to only install ng-sanitize from the list of
+aditional modules, and will be using ui-router.
+
+Then run ```sudo npm install``` and  ```bower install```
+
+And run ```grunt server``` to start the client app server
+
+You should see a blank page.  Now that it's all working, lets add
+angular-ui-router.
+
+```
+bower install angular-ui-router -save
+```
+The -save flag saves it to your package.json file.
+
+Then in index.html add
+
+```
+<script src="bower_components/angular-ui-router/release/angular-ui-router.js"></script>
+```
+below
+```
+<!-- build:js scripts/modules.js -->
+<script src="bower_components/angular-sanitize/angular-sanitize.js"></script>
+```
+and a ui-view just inside the body tag
+```
+<div ui-view="main"></div>
+```
+
+Then we need to alter our main angular app config.
+*app/scripts/app.coffee*
+```
+angular.module('wpwwClientApp', [
+  'ngSanitize'
+  'ui.router'
+])
+  .config ['$urlRouterProvider', ($urlRouterProvider) ->
+    $urlRouterProvider.otherwise('/')
+  ]
+```
+
+And lets add a state to test it out.  ```mkdir app/scripts/states```
+
+*app/views/states/public.coffee*
+```
+angular.module('states.public', [])
+.config(['$stateProvider', '$urlRouterProvider', ($stateProvider, $urlRouterProvider)->
+  $stateProvider.state('test', 
+    url: '/test'
+    views:
+      'main':
+        template: 'Hurrah!'
+        controller: (['$scope', '$state', ($scope, $state)->
+          console.log $scope, $state
+        ]) #end controller
+  )
+])
+```
+
+Then add the dependency to app.coffee
+*app.coffee*
+```
+angular.module('wpwwClientApp', [
+  'ngSanitize'
+  'ui.router'
+  'states.public' <--- here
+])
+---
+```
+
+And add the file to index.html so it is compiled. 
+
+*index.html*
+```
+---
+<!-- build:js({.tmp,app}) scripts/scripts.js -->
+<script src="scripts/app.js"></script>
+<script src="scripts/states/public.js"></script>
+<!-- endbuild -->
+---
+```
+
+Now when we run grunt server, and visit http://127.0.0.1:9000/#/test
+then we see Hurrah!.
