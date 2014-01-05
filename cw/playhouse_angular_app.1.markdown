@@ -34,7 +34,7 @@ gem 'sqlite3'
 gem 'activerecord', '~>4.0.1'
 
 gem 'playhouse', git: 'git://github.com/enspiral/playhouse.git'
-gem 'playhouse-sinatra', git: 'git://github.com/enspiral/playhouse-sinatra.git'
+gem 'playhouse-sinatra', git: 'git://github.com/allansideas/playhouse-sinatra.git'
 
 
 gem 'rack-cors', :require => 'rack/cors'
@@ -175,8 +175,8 @@ DatabaseTasks.db_dir = db_dir
 DatabaseTasks.database_configuration = YAML.load(File.read(File.join(config_dir, 'database.yml')))
 DatabaseTasks.migrations_paths = File.join(db_dir, 'migrate')
 
-require File.join(db_dir, 'seeds')
-DatabaseTasks.seed_loader = Wpww::SeedLoader
+#require File.join(db_dir, 'seeds')
+#DatabaseTasks.seed_loader = Wpww::SeedLoader
 
 task :environment do
   ActiveRecord::Base.configurations = DatabaseTasks.database_configuration
@@ -326,3 +326,257 @@ And add the file to index.html so it is compiled.
 
 Now when we run grunt server, and visit http://127.0.0.1:9000/#/test
 then we see Hurrah!.
+
+## All together now
+
+We have a functioning back end app and a functioning front end app but
+they are currently not talking to each other.  We will do a very basic
+call from the front end to the back end, then in the next part of the
+tutoral make some real calls to real data in the database.
+
+We will use the $http service in the controller of our state to call one
+of the out of the box api calls from the wpww backend.
+
+*app/scripts/states/public.coffee*
+```
+angular.module('states.public', [])
+.config(['$stateProvider', '$urlRouterProvider', ($stateProvider, $urlRouterProvider)->
+  $stateProvider.state('test', 
+    url: '/test'
+    views:
+      'main':
+        template: '<strong>{{test_data}}</strong>'
+        controller: (['$scope', '$state', '$http', ($scope, $state, $http)->
+          $http({method: 'GET', url: 'http://localhost:9393/wpww/test'}).success (data, status, headers, config)->
+            $scope.test_data = data
+          .error (data, status, headers, config)->
+            #can handle errors here.
+        ]) #end controller
+  )
+])
+```
+Here we added the $http service to the controller dependencies, and
+called our test url.  If the data successfully returned from the server
+then it is assigned to the test_data scope variable, and is rendered in
+the ```{{test_data}}``` part of the template.  You should now be seeing
+Murray! in bold on the page at localhost:9000/#/test this is data
+returned from the server Hurray!
+
+In part two we will look at the wpww backend app in more depth and start
+to hook it into our front end app in a more sensible manner.
+
+
+#Part 2
+
+Now we have a skeleton up and running we can start to plan how the
+actual app will work.  I imagine a page with with a list of
+people and how much they payed which anyone can add to and a button that any of them can press which
+calculates who pays who what, also a button to delete the whole thing.  I don't think anyone should have to sign up but the page should be semi private so we will use a hash as the url.  We could have the concept of a semi admin, by giving the first user in the group (the creator) special rights but lets see.
+
+For something like this we need a group, with a description to hold the users and provide a
+url, and users with a name, email address, and amount payed to provide
+the data we need to run our calculation on.  Lets get started and create
+the objects in our wpww backend.
+
+Unfortunately as playhouse is in it's infancy we will have to manually
+create our database migrations in the following format.
+[year][month][day][hour][minute]_name.rb so in the wpww backend root
+folder replace the date and time with your date and time ```touch db/migrate/201401051449_create_groups.rb```, then repeat for users.
+
+*db/migrate/201401051449_create_groups.rb*
+```
+class CreateGroups < ActiveRecord::Migration
+  def change
+    create_table :groups do |t|
+      t.string :description
+      t.string :identifier
+      t.timestamps
+    end
+  end
+end
+```
+
+*db/migrate/201401051454_create_users.rb*
+```
+class CreateUsers < ActiveRecord::Migration
+  def change
+    create_table :users do |t|
+      t.string :name
+      t.string :email
+      t.integer :amount_payed_cents
+
+      t.timestamps
+    end
+  end
+end
+```
+
+We then need to create the entities that relate to these database
+tables.
+
+touch lib/wpww/entities/group.rb && touch lib/wpww/entities/user.rb
+
+*lib/wpww/entities/group.rb *
+```
+require 'active_record'
+
+module Wpww
+  class Group < ActiveRecord::Base
+    has_many :users
+  end
+end
+```
+
+*lib/wpww/entities/user.rb *
+```
+require 'active_record'
+
+module Wpww
+  class User < ActiveRecord::Base
+    belongs_to :group
+  end
+end
+```
+Lets set up our rakefile so we can run the migration.
+```touch Rakefile```
+
+*Rakefile*
+```
+require 'bundler'
+Bundler.require
+
+require 'rubygems'
+require 'bundler/setup'
+require 'active_record'
+
+@root = File.dirname(__FILE__)
+require 'tasks/active_record_tasks'
+```
+Now lets run the migration ```rake db:migrate```
+
+So we have the entities, and the database set up, now we need to make
+them accessible via the api.  Lets create some contexts.
+
+```mkdir lib/wpww/contexts/groups lib/wpww/contexts/users```
+```touch lib/wpww/contexts/groups/create.rb
+lib/wpww/contexts/groups/show.rb lib/wpww/contexts/groups/destroy.rb
+lib/wpww/contexts/users/create.rb lib/wpww/contexts/users/list.rb
+lib/wpww/contexts/users/update.rb```
+
+We will start off with the creation and showing of groups.
+
+We need to generate a unique url for each group on creation so let's add
+that to a before_create hook in the entity.
+*lib/wpww/entities/group.rb*
+```
+require 'active_record'
+
+module Wpww
+  class Group < ActiveRecord::Base
+    before_create :generate_identifier
+    has_many :users
+
+    def generate_identifier
+      self.identifier = SecureRandom.urlsafe_base64 64
+      self.identifier.upcase
+    end
+  end
+end
+```
+*lib/wpww/contexts/groups/create.rb*
+```
+require 'playhouse/context'
+
+module Wpww
+  module Groups
+    class Create < Playhouse::Context
+      actor :description, optional: true
+
+      def perform
+        data = Group.create!(actors)
+        data
+      end
+    end
+  end
+end
+```
+
+And we need to tell playhouse to load all the groups contexts.
+*lib/wpww/wpww_play*
+```
+require 'playhouse/support/files'
+require 'playhouse/play'
+require_all File.dirname(__FILE__), 'contexts/**/*.rb'
+
+
+module Wpww
+  class WpwwPlay < Playhouse::Play
+    context Test
+    contexts_for Groups #Here we say look at all the contexts in the module groups.
+
+    def self.name
+      'wpww'
+    end
+  end
+end
+```
+
+If we now visit localhost:9393 we will see that there is a new api call
+available to us.  
+
+We will create the show context then try it out.
+
+*lib/wpww/contexts/groups/show.rb*
+```
+require 'playhouse/context'
+require 'wpww/entities/group'
+
+module Wpww
+  module Groups
+    class Show < Playhouse::Context
+      actor :identifier
+
+      def perform
+        data = Group.find_by_identifier(identifier)
+        data
+      end
+    end
+  end
+end
+```
+
+Playhouse automatically generates GET and POST for each call listed in
+localhost:9393, there are of course plans to make it automatically
+generate nicer routes, and there is also a basic router in place which
+we will touch on later.  For the purposes of testing these two calls out
+we will use GET from the browser location bar, but we know this is
+wrong.
+
+if we visit ```localhost:9393/wpww/create_groups?description=Horray!``` We should see some json representing the object that we just created.
+If we then copy the identifier and visit
+```localhost:9393/wpww/show_groups?identifier=paste_identifier_here```
+then we should see the same json.
+
+Lets create some nicer routes and then start wiring up the front end.
+
+*config/routes.yml*
+```
+-
+  get:
+    route: 'groups/:identifier'
+    command: show_groups
+    params: '*identifier'
+    description: Returns a specific identifier from the provided identifier
+-
+  post:
+    route: 'groups/'
+    command: create_groups
+    params: '*description'
+    description: Create a group
+```
+
+Lets try the get route out, visit ```localhost:9393/wpww/groups/paste_identifier_here``` and we should see the same json as before.
+
+The command part of the routes referrs to the commands you see
+available when visiting localhost:9393 the routes themselves are up to
+you.
