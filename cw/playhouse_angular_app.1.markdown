@@ -386,7 +386,8 @@ the objects in our wpww backend.
 Unfortunately as playhouse is in it's infancy we will have to manually
 create our database migrations in the following format.
 [year][month][day][hour][minute]_name.rb so in the wpww backend root
-folder replace the date and time with your date and time ```touch db/migrate/201401051449_create_groups.rb```, then repeat for users.
+folder replace the date and time with your date and time 
+```touch db/migrate/201401051449_create_groups.rb``` then repeat for users.  
 
 *db/migrate/201401051449_create_groups.rb*
 ```
@@ -559,9 +560,7 @@ we will use GET from the browser location bar, but we know this is
 wrong.
 
 if we visit ```localhost:9393/wpww/create_groups?description=Horray!``` We should see some json representing the object that we just created.
-If we then copy the identifier and visit
-```localhost:9393/wpww/show_groups?identifier=paste_identifier_here```
-then we should see the same json.
+If we then copy the identifier and visit ```localhost:9393/wpww/show_groups?identifier=paste_identifier_here``` then we should see the same json.
 
 Lets create some nicer routes and then start wiring up the front end.
 
